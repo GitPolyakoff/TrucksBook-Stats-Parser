@@ -1,9 +1,9 @@
-# TrucksBook Badge Generator
+# TrucksBook Banner Generator
 
-A simple, zero-database PHP badge generator for TrucksBook profiles. It creates an auto-updating PNG signature with your live ETS2 lifetime stats (distance, deliveries, country, and username) that you can easily use on forums and websites.
+A simple, zero-database PHP banner generator for TrucksBook profiles. It creates an auto-updating PNG signature with your live ETS2 lifetime stats (distance, deliveries, country, and username) that you can easily use on forums and websites.
 
 ## Why this exists
-Since TrucksBook keeps its API completely closed to third-party developers, this script directly scrapes and parses your real-time stats from the TrucksBook frontend to generate the badge on the fly.
+Since TrucksBook keeps its API completely closed to third-party developers, this script directly scrapes and parses your real-time stats from the TrucksBook frontend to generate the banner on the fly.
 
 ## Usage
 
@@ -20,7 +20,7 @@ For profile ID `567363`, the URL looks like this:
 `https://thurstan.p-host.in/badge.php?id=567363`
 
 **Result:**  
-![TrucksBook Badge Example](https://thurstan.p-host.in/badge.php?id=567363)
+![TrucksBook Banner Example](https://thurstan.p-host.in/badge.php?id=567363)
 
 ## Self-Hosting
 
