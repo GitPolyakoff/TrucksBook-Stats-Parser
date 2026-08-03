@@ -170,7 +170,7 @@ drawTextRightShadow($img, 16, 105, $textColor, $shadowColor, $font, $distStr, 77
 drawTextWithShadow($img, 11, 485, 145, $grayColor, $shadowColor, $font, 'DELIVERIES:');
 drawTextRightShadow($img, 16, 145, $textColor, $shadowColor, $font, $jobsStr, 770);
 
-$brandingText = 'TB-BADGE BY POLYAKOFF';
+$brandingText = 'TB-BANNER BY POLYAKOFF';
 $brandingSize = 9;
 $bboxBrand = imagettfbbox($brandingSize, 0, $font, $brandingText);
 $brandWidth = $bboxBrand[2] - $bboxBrand[0];
