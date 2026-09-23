@@ -1,15 +1,22 @@
 <?php
 $isDebug = isset($_GET['debug']);
-if (!$isDebug) {
+$format = strtolower($_GET['format'] ?? 'png');
+
+if (!$isDebug && $format !== 'json') {
     header('Content-Type: image/png');
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Cache-Control: post-check=0, pre-check=0', false);
     header('Pragma: no-cache');
-    header('Access-Control-Allow-Origin: *');
 }
+header('Access-Control-Allow-Origin: *');
 
 $target_user = $_GET['id'] ?? '';
 if (empty($target_user) || !is_numeric($target_user)) {
+    if ($format === 'json') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'ID не указан'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     die("ID не указан.");
 }
 
@@ -20,7 +27,7 @@ function fetchTbData($url) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Accept-Language: en-US,en;q=0.9',
-        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
     ]);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
@@ -36,17 +43,11 @@ function fetchTbAjax($url, $referer) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_ENCODING, "");
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language: en-US,en;q=0.9',
-        'Cache-Control: no-cache',
-        'Connection: keep-alive',
-        'Pragma: no-cache',
         'Referer: ' . $referer,
-        'Sec-Fetch-Dest: empty',
-        'Sec-Fetch-Mode: cors',
-        'Sec-Fetch-Site: same-origin',
         'X-Requested-With: XMLHttpRequest',
-        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
     ]);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
@@ -66,15 +67,19 @@ $flagUrl = $nameMatch[1] ?? '';
 $countryName = $nameMatch[2] ?? 'Unknown';
 $username = trim($nameMatch[3] ?? 'Driver');
 
-$statsUrl = "https://trucksbook.eu/components/app/profile/game_overview.php?user=" . $target_user . "&game=1&stat=0&period=all";
-$statsHtml = fetchTbAjax($statsUrl, $profileUrl);
+preg_match('/id="followers-count">\s*(\d+)\s*</i', $profileHtml, $followersMatch);
+$followers = isset($followersMatch[1]) ? (int)$followersMatch[1] : 0;
 
-if ($isDebug) {
-    header('Content-Type: text/html; charset=utf-8');
-    echo "<h1>Ответ сервера (Статистика):</h1>";
-    echo "<textarea style='width:100%;height:300px;'>" . htmlspecialchars($statsHtml) . "</textarea>";
-    die();
-}
+preg_match('/data-load="#follows-list"[^>]*>.*?(\d+)\s*</is', $profileHtml, $followingMatch);
+$following = isset($followingMatch[1]) ? (int)$followingMatch[1] : 0;
+
+preg_match('/<div class="profile-info-item">\s*<i class="[^"]*fa-building[^"]*"><\/i>(.*?)<\/div>/is', $profileHtml, $companyMatch);
+$companyText = isset($companyMatch[1]) ? trim(strip_tags($companyMatch[1])) : 'Loner';
+
+$isPremium = (strpos($profileHtml, 'icon_premium') !== false);
+
+$statsUrl = "https://trucksbook.eu/user-game-overview/" . $target_user . "?game=1&period=all";
+$statsHtml = fetchTbAjax($statsUrl, $profileUrl);
 
 $distance = '0';
 $deliveries = '0';
@@ -82,9 +87,149 @@ $deliveries = '0';
 if (preg_match('/fa-arrows-left-right.*?<span[^>]*float-end[^>]*>(.*?)<\/span>/is', $statsHtml, $distMatch)) {
     $distance = preg_replace('/[^\d]/', '', strip_tags($distMatch[1]));
 }
-
 if (preg_match('/fa-truck-loading.*?<span[^>]*float-end[^>]*>(.*?)<\/span>/is', $statsHtml, $delMatch)) {
     $deliveries = preg_replace('/[^\d]/', '', strip_tags($delMatch[1]));
+}
+
+$careerUrl = "https://trucksbook.eu/user-career-stats/" . $target_user . "?game=1";
+$careerHtml = fetchTbAjax($careerUrl, $profileUrl);
+
+preg_match_all('/<span[^>]*class=["\']float-end["\'][^>]*>(.*?)<\/span>/is', $careerHtml, $careerMatches);
+$cItems = $careerMatches[1] ?? [];
+
+function parseCareerItem($html) {
+    $img = '';
+    if (preg_match('/<img[^>]*src=["\']([^"\']+)["\']/i', $html, $imgMatch)) {
+        $img = $imgMatch[1];
+    }
+    return ['text' => trim(strip_tags($html)), 'image' => $img];
+}
+
+$jobType = isset($cItems[0]) ? parseCareerItem($cItems[0])['text'] : '';
+$fromData = isset($cItems[1]) ? parseCareerItem($cItems[1]) : ['text'=>'', 'image'=>''];
+$toData = isset($cItems[2]) ? parseCareerItem($cItems[2]) : ['text'=>'', 'image'=>''];
+$senderImg = isset($cItems[3]) ? parseCareerItem($cItems[3])['image'] : '';
+$receiverImg = isset($cItems[4]) ? parseCareerItem($cItems[4])['image'] : '';
+$cargo = isset($cItems[5]) ? parseCareerItem($cItems[5])['text'] : '';
+$parking = isset($cItems[6]) ? parseCareerItem($cItems[6])['text'] : '';
+$truckData = isset($cItems[7]) ? parseCareerItem($cItems[7]) : ['text'=>'', 'image'=>''];
+$timeline = [];
+if (preg_match_all('/<article[^>]*>(.*?)<\/article>/is', $profileHtml, $articles)) {
+    foreach ($articles[1] as $articleHtml) {
+        
+        $title = '';
+        if (preg_match('/<h2 class="card-title">\s*(.*?)\s*<\/h2>/is', $articleHtml, $titleMatch)) {
+            $title = trim(strip_tags($titleMatch[1]));
+        }
+        
+        $date = '';
+        if (preg_match('/<time[^>]*data-time=["\']([^"\']+)["\']/is', $articleHtml, $dateMatch)) {
+            $date = $dateMatch[1];
+        }
+        
+        $companyDetails = '';
+        if (preg_match('/<div class="card-body">.*?<a[^>]*>(.*?)<\/a>/is', $articleHtml, $compMatch)) {
+            $companyDetails = trim(strip_tags($compMatch[1]));
+        }
+
+        $footerText = '';
+        if (preg_match('/<div class="card-footer[^>]*>(.*?)<\/div>/is', $articleHtml, $footMatch)) {
+            $rawFooter = preg_replace('/<time.*?>.*?<\/time>/is', '', $footMatch[1]);
+            $footerText = trim(strip_tags($rawFooter));
+            $footerText = str_replace(['&nbsp;', '&amp;nbsp;'], ' ', $footerText);
+        }
+        
+        $timeline[] = [
+            'event' => $title,
+            'date' => $date,
+            'company_name' => $companyDetails,
+            'status_change' => $footerText
+        ];
+    }
+}
+
+$awards = [];
+if (preg_match_all('/<div class="p-3 profile-info-item d-flex gap-2 align-items-center">(.*?)<\/span>\s*<\/div>/is', $profileHtml, $awardItems)) {
+    foreach ($awardItems[1] as $itemHtml) {
+        $gameIcon = '';
+        if (preg_match('/<img[^>]*src=["\']([^"\']+)["\']/is', $itemHtml, $imgM)) {
+            $gameIcon = $imgM[1];
+        }
+
+        $title = '';
+        if (preg_match('/<span class="flex-grow-1">\s*<span>(.*?)<\/span>/is', $itemHtml, $titleM)) {
+            $title = trim(strip_tags($titleM[1]));
+        }
+
+        $desc = '';
+        if (preg_match('/<span class="text-muted">(.*?)<\/span>/is', $itemHtml, $descM)) {
+            $desc = trim(strip_tags($descM[1]));
+        }
+
+        $color = 'none';
+        if (preg_match('/color-([a-z]+)/i', $itemHtml, $colorM)) {
+            $color = $colorM[1];
+        }
+
+        $awards[] = [
+            'title' => $title,
+            'description' => $desc,
+            'game_icon' => $gameIcon,
+            'trophy_color' => $color
+        ];
+    }
+}
+
+if ($format === 'json') {
+    header('Content-Type: application/json; charset=utf-8');
+    
+    $apiResponse = [
+        'user' => [
+            'id' => $target_user,
+            'username' => $username,
+            'country' => $countryName,
+            'avatar_url' => $avatarUrl,
+            'flag_url' => $flagUrl,
+            'company' => $companyText,
+            'followers' => $followers,
+            'following' => $following,
+            'is_premium' => $isPremium
+        ],
+        'lifetime_stats' => [
+            'distance_km' => (int)$distance,
+            'deliveries' => (int)$deliveries
+        ],
+        'frequent_deliveries' => [
+            'job_type' => $jobType,
+            'from' => [
+                'city' => $fromData['text'],
+                'flag_url' => $fromData['image']
+            ],
+            'to' => [
+                'city' => $toData['text'],
+                'flag_url' => $toData['image']
+            ],
+            'sender_company_image' => $senderImg,
+            'receiver_company_image' => $receiverImg,
+            'cargo' => $cargo,
+            'parking_problems' => $parking,
+            'truck' => [
+                'model' => $truckData['text'],
+                'brand_image' => $truckData['image']
+            ]
+        ],
+        'awards' => $awards,
+        'news_feed' => $timeline
+    ];
+    
+    echo json_encode($apiResponse, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if ($isDebug) {
+    header('Content-Type: text/html; charset=utf-8');
+    echo "<h1>Ответ сервера (Статистика):</h1><textarea style='width:100%;height:300px;'>" . htmlspecialchars($statsHtml) . "</textarea>";
+    die();
 }
 
 $distStr = ($distance !== '') ? number_format((int)$distance, 0, '', ' ') . ' km' : '0 km';
