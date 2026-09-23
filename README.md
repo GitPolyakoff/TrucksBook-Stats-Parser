@@ -1,6 +1,6 @@
 # TrucksBook Unofficial API & Banner Generator
 
-A zero-database PHP script that serves as both a dynamic banner generator and an unofficial JSON API for TrucksBook profiles. It parses live ETS2/ATS lifetime stats, frequent deliveries, company details, awards, and news feeds directly from the frontend.
+A zero-database PHP script that serves as both a dynamic banner generator and an unofficial JSON API for TrucksBook profiles. It parses live ETS2 lifetime stats, frequent deliveries, company details, awards, and news feeds directly from the frontend.
 
 ## Why this exists
 Since TrucksBook keeps its API completely closed to third-party developers, this script directly scrapes and parses your real-time stats from the TrucksBook frontend to generate banners on the fly or return structured JSON data for your own applications.
